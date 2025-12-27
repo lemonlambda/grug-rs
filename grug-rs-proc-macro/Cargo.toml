@@ -2,6 +2,9 @@
 name = "grug-rs-proc-macro"
 version = "0.1.0"
 edition = "2024"
+description = "Proc Macros for grug-rs"
+license = "MIT"
+repository = "https://github.com/lemonlambda/grug-rs"
 
 [lib]
 proc-macro = true
