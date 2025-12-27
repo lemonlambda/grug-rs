@@ -17,6 +17,7 @@ use thiserror::Error;
 
 use crate::{mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
 
+/// Errors from Grug
 #[derive(Error, Debug)]
 pub enum GrugError {
     #[error("Failed to initialize Grug: `{0}`")]
@@ -74,6 +75,18 @@ pub struct Grug {
 }
 
 impl Grug {
+    /// Initializes grug for usage.
+    /// You should only do this once or bad things will happen.
+    ///
+    /// # Example
+    /// ```rs
+    /// let grug = Grug::new(
+    ///     "./examples/mod_api.json",
+    ///     "./examples/mods",
+    ///     "./examples/mods_dll",
+    ///     1000,
+    /// ).unwrap();
+    /// ```
     pub fn new<P1, P2, P3>(
         // error_handler: ErrorHandler,
         mod_api_path: P1,
@@ -150,6 +163,7 @@ impl Grug {
         Ok(Self { mod_api, entities })
     }
 
+    /// Regenerates modified mods
     pub fn regenerate_modified_mods(&self) -> Result<(), GrugError> {
         let failed = unsafe { grug_regenerate_modified_mods() };
 
@@ -169,6 +183,14 @@ impl Grug {
         Ok(())
     }
 
+    /// Activates an `on_function` on a given `entity`
+    ///
+    /// Automatically calls `regenerate_modified_mods`
+    ///
+    /// # Example
+    /// ```rs
+    /// grug.activate_on_function("World", "on_update").unwrap();
+    /// ```
     pub fn activate_on_function<S1: ToString, S2: ToString>(
         &self,
         entity_name: S1,
@@ -228,7 +250,7 @@ impl Grug {
 }
 
 pub struct GrugFile {
-    inner: grug_file,
+    pub inner: grug_file,
 }
 
 impl GrugFile {
