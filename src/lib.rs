@@ -1,0 +1,249 @@
+pub mod mod_api_type;
+mod to_string_wrapper;
+
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    ffi::{CStr, CString, OsString, c_char, c_void},
+    fs::read_to_string,
+    path::PathBuf,
+    ptr::null_mut,
+    slice::from_raw_parts,
+};
+
+use grug_sys::*;
+use serde_json::from_str;
+use thiserror::Error;
+
+use crate::{mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
+
+#[derive(Error, Debug)]
+pub enum GrugError {
+    #[error("Failed to initialize Grug: `{0}`")]
+    Init(String),
+    #[error("Failed to read: `{0}`: `{1}`")]
+    ReadModAPI(PathBuf, String),
+    #[error("Failed to deserialize `{0}`: `{1}`")]
+    Deserialize(PathBuf, String),
+    #[error("`{0}` is not a on_function")]
+    NotAnOnFunction(String),
+    #[error("`{0}` is not an entity")]
+    NotAnEntity(String),
+    #[error("Grug failed to load: `{0}` in `{1}`")]
+    FileLoading(String, String),
+    #[error("Grug regenerating error: `{0}`")]
+    Regerenating(String),
+}
+
+pub type ErrorHandler = fn(String, grug_runtime_error_type, String, String);
+
+unsafe extern "C" fn runtime_error_handler(
+    reason: *const c_char,
+    _type_: grug_runtime_error_type,
+    on_fn_name: *const c_char,
+    on_fn_path: *const c_char,
+) {
+    // Convert inputs safely
+    let reason = if !reason.is_null() {
+        unsafe { CStr::from_ptr(reason).to_string_lossy() }
+    } else {
+        "<no reason>".into()
+    };
+
+    let fn_name = if !on_fn_name.is_null() {
+        unsafe { CStr::from_ptr(on_fn_name).to_string_lossy() }
+    } else {
+        "<unknown fn>".into()
+    };
+
+    let fn_path = if !on_fn_path.is_null() {
+        unsafe { CStr::from_ptr(on_fn_path).to_string_lossy() }
+    } else {
+        "<unknown path>".into()
+    };
+
+    eprintln!(
+        "Grug runtime error: {}\n  at {} ({})",
+        reason, fn_name, fn_path
+    );
+}
+
+pub struct Grug {
+    mod_api: ModAPI,
+    entities: HashMap<String, HashMap<String, usize>>,
+}
+
+impl Grug {
+    pub fn new<P1, P2, P3>(
+        // error_handler: ErrorHandler,
+        mod_api_path: P1,
+        mods_folder: P2,
+        mods_dll_folder: P3,
+        timeout_ms: u64,
+    ) -> Result<Self, GrugError>
+    where
+        P1: Into<PathBuf>,
+        P2: Into<PathBuf>,
+        P3: Into<PathBuf>,
+    {
+        let mod_api_path: PathBuf = mod_api_path.into();
+        let mods_folder: PathBuf = mods_folder.into();
+        let mods_dll_folder: PathBuf = mods_dll_folder.into();
+
+        assert!(mod_api_path.is_file()); // Ensure that it's a file to begin with
+        assert!(mod_api_path.extension().is_some()); // Ensure it has an extension
+        assert_eq!(
+            mod_api_path.extension().unwrap().to_os_string(),
+            OsString::from("json".to_string())
+        ); // Ensure that it's a json extension
+
+        assert!(!mods_folder.is_file()); // Ensure it's a folder
+
+        // We need to get the on function count
+        let mod_api_json = read_to_string(&mod_api_path)
+            .map_err(|x| GrugError::ReadModAPI(mod_api_path.clone(), x.to_string().clone()))?;
+        let mod_api: ModAPI = from_str(&mod_api_json)
+            .map_err(|x| GrugError::Deserialize(mod_api_path.clone(), x.to_string()))?;
+
+        let entities = mod_api
+            .entities
+            .iter()
+            .map(|(name, data)| {
+                let mut i = 0;
+                (
+                    name.clone(),
+                    data.on_functions
+                        .iter()
+                        .map(|(k, v)| {
+                            let return_val = (k.clone(), i);
+                            i += 1;
+                            return_val
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+
+        // Initialize grug
+        let result = unsafe {
+            grug_init(
+                Some(runtime_error_handler),
+                CString::new(mod_api_path.as_os_str().to_string_lossy().to_string())
+                    .unwrap()
+                    .as_ptr(),
+                CString::new(mods_folder.as_os_str().to_string_lossy().to_string())
+                    .unwrap()
+                    .as_ptr(),
+                CString::new(mods_dll_folder.as_os_str().to_string_lossy().to_string())
+                    .unwrap()
+                    .as_ptr(),
+                timeout_ms,
+            )
+        };
+
+        if result {
+            #[allow(static_mut_refs)]
+            let error = unsafe { grug_error }; // SAFETY: This implements the copy trait so it's safe to use
+            return Err(GrugError::Init(error.msg.to_string()));
+        }
+
+        Ok(Self { mod_api, entities })
+    }
+
+    pub fn regenerate_modified_mods(&self) -> Result<(), GrugError> {
+        let failed = unsafe { grug_regenerate_modified_mods() };
+
+        if failed {
+            #[allow(static_mut_refs)]
+            let error = unsafe { grug_error }; // SAFETY: This implements the copy trait so it's safe to use
+            if unsafe { grug_loading_error_in_grug_file } {
+                return Err(GrugError::FileLoading(
+                    error.msg.to_string(),
+                    error.path.to_string(),
+                ));
+            } else {
+                return Err(GrugError::Regerenating(error.msg.to_string()));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn activate_on_function<S1: ToString, S2: ToString>(
+        &self,
+        entity_name: S1,
+        on_function_name: S2,
+    ) -> Result<(), GrugError> {
+        self.regenerate_modified_mods()?;
+
+        let on_functions = self.entities.get(&entity_name.to_string());
+
+        if on_functions.is_none() {
+            return Err(GrugError::NotAnEntity(entity_name.to_string()));
+        }
+
+        let index = on_functions.unwrap().get(&on_function_name.to_string());
+
+        if index.is_none() {
+            return Err(GrugError::NotAnOnFunction(on_function_name.to_string()));
+        }
+
+        let index = *index.unwrap();
+
+        let files = self.get_files_by_entity_type(entity_name);
+
+        for file in files {
+            unsafe { file.run_on_function(index) };
+        }
+
+        Ok(())
+    }
+
+    // This is only self because we want to ensure grug is initialized
+    pub fn get_files_by_entity_type<S: ToString>(&self, name: S) -> Vec<GrugFile> {
+        let name = name.to_string();
+
+        #[allow(static_mut_refs)]
+        let mods = unsafe { grug_mods }; // SAFETY: This implements the copy trait so it's safe to use
+        let mods = unsafe { from_raw_parts(mods.dirs, mods.dirs_size) };
+
+        let mut return_files = vec![];
+
+        for mod_ in mods.iter() {
+            let files = unsafe { from_raw_parts(mod_.files, mod_.files_size) };
+            for file in files {
+                let mod_entity_name = unsafe {
+                    CStr::from_ptr(file.entity_type)
+                        .to_string_lossy()
+                        .into_owned()
+                };
+                if mod_entity_name == name {
+                    return_files.push(GrugFile::new(*file));
+                }
+            }
+        }
+
+        return_files
+    }
+}
+
+pub struct GrugFile {
+    inner: grug_file,
+}
+
+impl GrugFile {
+    pub fn new(file: grug_file) -> Self {
+        Self { inner: file }
+    }
+
+    /// # SAFETY
+    /// Will segfault if you put an invalid index.
+    pub unsafe fn run_on_function(&self, index: usize) {
+        let ptr = self.inner.on_fns as *mut unsafe extern "C" fn(*mut c_void);
+        let func = unsafe { from_raw_parts(ptr, index + 1) }.last().unwrap();
+
+        unsafe {
+            func(null_mut()); // TODO: Replace null_mut() with actual global variables
+        }
+    }
+}

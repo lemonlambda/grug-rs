@@ -1,0 +1,18 @@
+[package]
+name = "grug-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Safe bindings for https://github.com/grug-lang/grug"
+license = "MIT"
+repository = "https://github.com/lemonlambda/grug-rs"
+
+[dependencies]
+grug-rs-proc-macro = { version = "0.1.0", path = "grug-rs-proc-macro" }
+grug-sys = "0.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.147"
+thiserror = "2.0.17"
+
+[dev-dependencies]
+anyhow = "1.0.100"
+

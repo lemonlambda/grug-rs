@@ -1,0 +1,11 @@
+[package]
+name = "grug-rs-proc-macro"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0.42"
+syn = { version = "2.0.111", features = ["full"] }
