@@ -104,20 +104,22 @@ use crate::{mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
 /// Errors from Grug
 #[derive(Error, Debug)]
 pub enum GrugError {
-    #[error("Failed to initialize Grug: `{0}`")]
-    Init(String),
-    #[error("Failed to read: `{0}`: `{1}`")]
-    ReadModAPI(PathBuf, String),
-    #[error("Failed to deserialize `{0}`: `{1}`")]
-    Deserialize(PathBuf, String),
-    #[error("`{0}` is not a on_function")]
-    NotAnOnFunction(String),
-    #[error("`{0}` is not an entity")]
-    NotAnEntity(String),
-    #[error("Grug failed to load: `{0}` in `{1}`")]
-    FileLoading(String, String),
-    #[error("Grug regenerating error: `{0}`")]
-    Regerenating(String),
+    #[error("Failed to initialize Grug: `{error}`")]
+    Init { error: String },
+    #[error("Failed to read: `{path}`: `{error}`")]
+    ReadModAPI { path: PathBuf, error: String },
+    #[error("Failed to deserialize `{path}`: `{error}`")]
+    Deserialize { path: PathBuf, error: String },
+    #[error("`{function_name}` is not a on_function")]
+    NotAnOnFunction { function_name: String },
+    #[error("`{entity_name}` is not an entity")]
+    NotAnEntity { entity_name: String },
+    #[error("Grug failed to load: `{name}` in `{path}`")]
+    FileLoading { name: String, path: String },
+    #[error("Grug regenerating error: `{error}`")]
+    Regenerating { error: String },
+    #[error("Grug function not defined")]
+    UndefinedFunction,
 }
 
 pub type ErrorHandler = fn(String, grug_runtime_error_type, String, String);
@@ -198,10 +200,14 @@ impl Grug {
         assert!(!mods_folder.is_file()); // Ensure it's a folder
 
         // We need to get the on function count
-        let mod_api_json = read_to_string(&mod_api_path)
-            .map_err(|x| GrugError::ReadModAPI(mod_api_path.clone(), x.to_string().clone()))?;
-        let mod_api: ModAPI = from_str(&mod_api_json)
-            .map_err(|x| GrugError::Deserialize(mod_api_path.clone(), x.to_string()))?;
+        let mod_api_json = read_to_string(&mod_api_path).map_err(|x| GrugError::ReadModAPI {
+            path: mod_api_path.clone(),
+            error: x.to_string().clone(),
+        })?;
+        let mod_api: ModAPI = from_str(&mod_api_json).map_err(|x| GrugError::Deserialize {
+            path: mod_api_path.clone(),
+            error: x.to_string(),
+        })?;
 
         let entities = mod_api
             .entities
@@ -242,7 +248,9 @@ impl Grug {
         if result {
             #[allow(static_mut_refs)]
             let error = unsafe { grug_error }; // SAFETY: This implements the copy trait so it's safe to use
-            return Err(GrugError::Init(error.msg.to_string()));
+            return Err(GrugError::Init {
+                error: error.msg.to_string(),
+            });
         }
 
         Ok(Self { mod_api, entities })
@@ -256,12 +264,14 @@ impl Grug {
             #[allow(static_mut_refs)]
             let error = unsafe { grug_error }; // SAFETY: This implements the copy trait so it's safe to use
             if unsafe { grug_loading_error_in_grug_file } {
-                return Err(GrugError::FileLoading(
-                    error.msg.to_string(),
-                    error.path.to_string(),
-                ));
+                return Err(GrugError::FileLoading {
+                    name: error.msg.to_string(),
+                    path: error.path.to_string(),
+                });
             } else {
-                return Err(GrugError::Regerenating(error.msg.to_string()));
+                return Err(GrugError::Regenerating {
+                    error: error.msg.to_string(),
+                });
             }
         }
 
@@ -286,13 +296,17 @@ impl Grug {
         let on_functions = self.entities.get(&entity_name.to_string());
 
         if on_functions.is_none() {
-            return Err(GrugError::NotAnEntity(entity_name.to_string()));
+            return Err(GrugError::NotAnEntity {
+                entity_name: entity_name.to_string(),
+            });
         }
 
         let index = on_functions.unwrap().get(&on_function_name.to_string());
 
         if index.is_none() {
-            return Err(GrugError::NotAnOnFunction(on_function_name.to_string()));
+            return Err(GrugError::NotAnOnFunction {
+                function_name: on_function_name.to_string(),
+            });
         }
 
         let index = *index.unwrap();
