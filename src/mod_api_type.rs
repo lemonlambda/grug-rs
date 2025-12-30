@@ -1,17 +1,16 @@
-use std::collections::BTreeMap;
-
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ModAPI {
-    pub entities: BTreeMap<String, Entity>,
-    pub game_functions: BTreeMap<String, GameFunction>,
+    pub entities: LinkedHashMap<String, Entity>,
+    pub game_functions: LinkedHashMap<String, GameFunction>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entity {
     pub description: String,
-    pub on_functions: BTreeMap<String, GameFunction>,
+    pub on_functions: LinkedHashMap<String, GameFunction>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

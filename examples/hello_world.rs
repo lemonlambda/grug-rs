@@ -19,6 +19,7 @@ fn main() -> Result<()> {
     loop {
         grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
         grug.activate_on_function("World", "on_argument_test", &mut args)?;
+        grug.activate_on_function("World", "on_globals_test", &mut args)?;
     }
     Ok(())
 }

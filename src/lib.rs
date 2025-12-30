@@ -90,6 +90,7 @@ pub mod mod_api_type;
 mod to_string_wrapper;
 
 use std::{
+    alloc::{Layout, alloc},
     collections::HashMap,
     ffi::{CStr, CString, OsString, c_char, c_void},
     fs::read_to_string,
@@ -240,10 +241,9 @@ impl Grug {
                     name.clone(),
                     data.on_functions
                         .keys()
-                        .rev()
                         .map(|k| {
                             let return_val = (k.clone(), i);
-                            // println!("{k}");
+                            println!("{k}");
                             i += 1;
                             return_val
                         })
@@ -402,6 +402,9 @@ impl GrugFile {
             return Err(GrugError::UndefinedFunction);
         }
 
+        let globals = unsafe { alloc(Layout::array::<u8>(self.inner.globals_size).unwrap()) };
+        unsafe { (self.inner.init_globals_fn.unwrap())(globals as *mut c_void, 0) };
+
         let func = func.unwrap() as *mut unsafe extern "C" fn(*mut c_void);
 
         unsafe {
@@ -412,7 +415,7 @@ impl GrugFile {
                     #(N => {
                         seq!(M in 0..N {
                             let func = func as *mut unsafe extern "C" fn(*mut c_void, #(OpaqueGrugType,)*);
-                            (*func)(null_mut(), #(*(args[M] as *mut _),)*);
+                            (*func)(globals as *mut c_void, #(*(args[M] as *mut _),)*);
                         });
                     },)*
                     _ => panic!("Too many arguments, either report this or refactor."),

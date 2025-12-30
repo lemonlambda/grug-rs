@@ -1,7 +1,13 @@
+hello: string = "HELLO WORLD"
+
 on_update() {
     println("Hello world!")
 }
 
 on_argument_test(test: string) {
     println(test)
+}
+
+on_globals_test() {
+    println(hello)
 }

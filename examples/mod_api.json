@@ -14,6 +14,9 @@
               "type": "string"
             }
           ]
+        },
+        "on_globals_test": {
+          "description": "Called every tick"
         }
       }
     }
