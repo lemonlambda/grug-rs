@@ -49,6 +49,14 @@ impl GrugValue {
     }
 }
 
+/// Arguments to a grug function
+///
+/// # Example
+/// ```
+/// let mut args = Arguments::new(vec![GrugValue::String("hello, world".to_string())]);
+/// grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
+/// grug.activate_on_function("World", "on_argument_test", &mut args)?;
+/// ```
 pub struct Arguments {
     pub(crate) values: Vec<GrugValue>,
     raw_values: Option<Vec<*mut c_void>>,

@@ -264,7 +264,7 @@ impl Grug {
         Ok(Self { mod_api, entities })
     }
 
-    /// # SAFETY
+    /// # Safety
     /// Will fail if grug is not initialized
     pub unsafe fn regenerate_modified_mods_unchecked() -> Result<(), GrugError> {
         let failed = unsafe { grug_regenerate_modified_mods() };
@@ -338,7 +338,10 @@ impl Grug {
         Ok(())
     }
 
-    // This is only self because we want to ensure grug is initialized
+    /// Get a list of grug files based on the name of an entity.
+    ///
+    /// # Safety
+    /// This is only self because we want to ensure grug is initialized
     pub fn get_files_by_entity_type<S: ToString>(&self, name: S) -> Vec<GrugFile> {
         let name = name.to_string();
 
@@ -366,6 +369,7 @@ impl Grug {
     }
 }
 
+/// An opaque grug type
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OpaqueGrugType {
