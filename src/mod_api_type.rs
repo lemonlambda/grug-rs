@@ -11,12 +11,7 @@ pub struct ModAPI {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entity {
     pub description: String,
-    pub on_functions: BTreeMap<String, OnFunction>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct OnFunction {
-    pub description: String,
+    pub on_functions: BTreeMap<String, GameFunction>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

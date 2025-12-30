@@ -93,6 +93,7 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString, OsString, c_char, c_void},
     fs::read_to_string,
+    mem::transmute,
     path::PathBuf,
     ptr::null_mut,
     slice::{from_raw_parts, from_raw_parts_mut},
@@ -214,25 +215,6 @@ impl Grug {
             error: x.to_string(),
         })?;
 
-        let entities = mod_api
-            .entities
-            .iter()
-            .map(|(name, data)| {
-                let mut i = 0;
-                (
-                    name.clone(),
-                    data.on_functions
-                        .keys()
-                        .map(|k| {
-                            let return_val = (k.clone(), i);
-                            i += 1;
-                            return_val
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
-
         // Initialize grug
         let result = unsafe {
             grug_init(
@@ -250,6 +232,27 @@ impl Grug {
             )
         };
 
+        let entities = mod_api
+            .entities
+            .iter()
+            .map(|(name, data)| {
+                let mut i = 0;
+                (
+                    name.clone(),
+                    data.on_functions
+                        .keys()
+                        .rev()
+                        .map(|k| {
+                            let return_val = (k.clone(), i);
+                            // println!("{k}");
+                            i += 1;
+                            return_val
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+
         if result {
             #[allow(static_mut_refs)]
             let error = unsafe { grug_error }; // SAFETY: This implements the copy trait so it's safe to use
@@ -261,8 +264,9 @@ impl Grug {
         Ok(Self { mod_api, entities })
     }
 
-    /// Regenerates modified mods
-    pub fn regenerate_modified_mods(&self) -> Result<(), GrugError> {
+    /// # SAFETY
+    /// Will fail if grug is not initialized
+    pub unsafe fn regenerate_modified_mods_unchecked() -> Result<(), GrugError> {
         let failed = unsafe { grug_regenerate_modified_mods() };
 
         if failed {
@@ -281,6 +285,11 @@ impl Grug {
         }
 
         Ok(())
+    }
+
+    /// Regenerates modified mods
+    pub fn regenerate_modified_mods(&self) -> Result<(), GrugError> {
+        unsafe { Self::regenerate_modified_mods_unchecked() }
     }
 
     /// Activates an `on_function` on a given `entity`
@@ -357,6 +366,12 @@ impl Grug {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct OpaqueGrugType {
+    pub raw: *mut c_void,
+}
+
 pub struct GrugFile {
     pub inner: grug_file,
 }
@@ -368,13 +383,15 @@ impl GrugFile {
 
     /// # SAFETY
     /// Will segfault if you put an invalid index.
+    ///
+    /// Assumes `arguments` is non-null.
     pub unsafe fn run_on_function(
         &self,
         index: usize,
         arguments: *mut *mut c_void,
         arguments_len: usize,
     ) -> Result<(), GrugError> {
-        let ptr = self.inner.on_fns as *mut unsafe extern "C" fn();
+        let ptr = self.inner.on_fns as *mut unsafe extern "C" fn(*mut c_void);
         let func = unsafe { from_raw_parts_mut(ptr, index + 1) }.last_mut();
 
         if func.is_none() {
@@ -382,19 +399,20 @@ impl GrugFile {
             return Err(GrugError::UndefinedFunction);
         }
 
-        let func = func.unwrap() as *mut _;
+        let func = func.unwrap() as *mut unsafe extern "C" fn(*mut c_void);
 
         unsafe {
             let args = from_raw_parts(arguments, arguments_len);
-            seq!(N in 0..15 {
+            seq!(N in 1..3 {
                 match arguments_len {
+                    0 => (*func)(null_mut()),
                     #(N => {
                         seq!(M in 0..N {
-                            let func = func as *mut unsafe extern "C" fn(*mut c_void, #(i32,)*);
+                            let func = func as *mut unsafe extern "C" fn(*mut c_void, #(OpaqueGrugType,)*);
                             (*func)(null_mut(), #(*(args[M] as *mut _),)*);
                         });
                     },)*
-                    _ => panic!("Too arguments, either report this or refactor."),
+                    _ => panic!("Too many arguments, either report this or refactor."),
                 }
             })
         }

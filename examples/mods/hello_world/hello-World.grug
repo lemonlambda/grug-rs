@@ -2,6 +2,6 @@ on_update() {
     println("Hello world!")
 }
 
-on_argument_test(test: i32) {
-    println_int(test)
+on_argument_test(test: string) {
+    println(test)
 }

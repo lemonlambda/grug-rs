@@ -1,6 +1,7 @@
 use std::{
     any::Any,
     borrow::Borrow,
+    collections::HashMap,
     ffi::{CString, c_void},
 };
 
@@ -51,6 +52,7 @@ impl GrugValue {
 pub struct Arguments {
     pub(crate) values: Vec<GrugValue>,
     raw_values: Option<Vec<*mut c_void>>,
+    stored_c_strings: HashMap<String, CString>,
 }
 
 impl Arguments {
@@ -58,6 +60,7 @@ impl Arguments {
         Self {
             values,
             raw_values: None,
+            stored_c_strings: HashMap::new(),
         }
     }
 
@@ -65,19 +68,26 @@ impl Arguments {
         Self {
             values: vec![],
             raw_values: None,
+            stored_c_strings: HashMap::new(),
         }
     }
 
     pub fn into_raw(&mut self) -> *mut *mut c_void {
         let mut values = vec![];
 
-        for v in self.values.clone().iter_mut() {
+        for v in self.values.iter_mut() {
             values.push(match v {
-                GrugValue::String(_) => todo!(),
+                GrugValue::String(v) => {
+                    let _ = self
+                        .stored_c_strings
+                        .entry(v.clone())
+                        .or_insert(CString::new(v.clone()).unwrap());
+                    self.stored_c_strings.get_mut(v).unwrap() as *mut _ as *mut c_void
+                }
                 GrugValue::I32(v) => v as *mut i32 as *mut c_void,
-                GrugValue::F32(_) => todo!(),
-                GrugValue::Bool(_) => todo!(),
-                GrugValue::Custom(_) => todo!(),
+                GrugValue::F32(v) => v as *mut f32 as *mut c_void,
+                GrugValue::Bool(v) => v as *mut bool as *mut c_void,
+                GrugValue::Custom(v) => (*v).as_mut() as *mut _ as *mut c_void,
             });
         }
 
