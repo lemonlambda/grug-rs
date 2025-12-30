@@ -3,13 +3,124 @@ use std::{collections::HashMap, mem::swap};
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{
-    Abi, FnArg, Ident, ItemFn, Pat, Stmt, Type, TypePtr, parse_macro_input,
+    Abi, Block, FnArg, Ident, ItemFn, Pat, Stmt, Type, TypePtr, parse_macro_input,
     token::{Const, Star, Unsafe},
 };
+
+/// Attribute to make error handlers easily
+///
+/// # Example
+/// ```
+/// #[error_handler]
+/// fn error_handler(reason: String, ty: GrugRuntimeError, on_fn_name: String, on_fn_path: String) {
+///     eprintln!(
+///         "Grug runtime error: {}\n  at {} ({})",
+///         reason, on_fn_name, on_fn_path
+///     );
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn error_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as ItemFn);
+
+    assert!(
+        input.sig.inputs.len() == 4,
+        "Error handler takes 4 arguments"
+    );
+
+    let mut names = vec![];
+
+    // Replace the types of each of them with the C types
+    for (i, arg) in input.sig.inputs.iter_mut().enumerate() {
+        match arg {
+            FnArg::Receiver(_) => unreachable!(),
+            FnArg::Typed(pat_type) => {
+                // Grab the name of the variable
+                let var_name = {
+                    if let Pat::Ident(ident) = *pat_type.pat.clone() {
+                        ident.ident.to_string()
+                    } else {
+                        unreachable!()
+                    }
+                };
+
+                names.push(var_name);
+
+                let ty = grab_type_for_error_handler(i);
+                swap(
+                    &mut pat_type.ty,
+                    &mut Box::new(parse_macro_input!(ty as Type)),
+                );
+            }
+        }
+    }
+
+    let conversion = format!(
+        "{{// Convert inputs safely
+    let {0} = if !{0}.is_null() {{
+        unsafe {{ std::ffi::CStr::from_ptr({0}).to_string_lossy() }}
+    }} else {{
+        \"<unknown>\".into()
+    }}.to_string();
+
+    let {1} = unsafe {{ std::mem::transmute::<_, grug_rs::GrugRuntimeError>({1}) }};
+
+    let {2} = if !{2}.is_null() {{
+        unsafe {{ std::ffi::CStr::from_ptr({2}).to_string_lossy() }}
+    }} else {{
+        \"<unknown>\".into()
+    }}.to_string();
+
+    let {3} = if !{3}.is_null() {{
+        unsafe {{ std::ffi::CStr::from_ptr({3}).to_string_lossy() }}
+    }} else {{
+        \"<unknown>\".into()
+    }}.to_string();
+}}",
+        names[0], names[1], names[2], names[3]
+    )
+    .parse()
+    .unwrap();
+
+    input.block.stmts = [
+        parse_macro_input!(conversion as Block).stmts,
+        input.block.stmts,
+    ]
+    .concat();
+
+    let abi = "extern \"C\"".parse().unwrap();
+    input.sig.abi = Some(parse_macro_input!(abi as Abi));
+
+    input.sig.unsafety = Some(Unsafe::default());
+
+    TokenStream::from(quote! {
+        #input
+    })
+}
+
+fn grab_type_for_error_handler(idx: usize) -> TokenStream {
+    match idx {
+        0 => "*const std::ffi::c_char",
+        1 => "grug_rs::grug_sys::grug_runtime_error_type",
+        2 => "*const std::ffi::c_char",
+        3 => "*const std::ffi::c_char",
+        _ => unreachable!(),
+    }
+    .parse()
+    .unwrap()
+}
 
 /// Attribute to make game function easily
 ///
 /// Only appliable to functions
+///
+/// # Example
+/// ```
+/// #[game_function]
+/// fn println(message: String) {
+///     println!("{message}");
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn game_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemFn);

@@ -85,6 +85,8 @@
 //! }
 //! ```
 
+pub use grug_sys;
+
 pub mod grug_value;
 pub mod mod_api_type;
 mod to_string_wrapper;
@@ -128,9 +130,23 @@ pub enum GrugError {
     UndefinedFunction,
 }
 
-pub type ErrorHandler = fn(String, grug_runtime_error_type, String, String);
+#[repr(C)]
+pub enum GrugRuntimeError {
+    DivisionByZero,
+    StackOverflow,
+    TimeLimitExceeded,
+    Overflow,
+    GameFnError,
+}
 
-unsafe extern "C" fn runtime_error_handler(
+pub type ErrorHandler =
+    unsafe extern "C" fn(*const c_char, grug_runtime_error_type, *const c_char, *const c_char);
+
+/// Default error handler for grug-rs
+///
+/// # Safety
+/// Will error out if pointers passed into error handler are misaligned
+pub unsafe extern "C" fn default_runtime_error_handler(
     reason: *const c_char,
     _type_: grug_runtime_error_type,
     on_fn_name: *const c_char,
@@ -181,7 +197,7 @@ impl Grug {
     /// ).unwrap();
     /// ```
     pub fn new<P1, P2, P3>(
-        // error_handler: ErrorHandler,
+        error_handler: Option<ErrorHandler>,
         mod_api_path: P1,
         mods_folder: P2,
         mods_dll_folder: P3,
@@ -218,7 +234,7 @@ impl Grug {
         // Initialize grug
         let result = unsafe {
             grug_init(
-                Some(runtime_error_handler),
+                Some(error_handler.unwrap_or(default_runtime_error_handler)),
                 CString::new(mod_api_path.as_os_str().to_string_lossy().to_string())
                     .unwrap()
                     .as_ptr(),

@@ -1,12 +1,12 @@
 use grug_rs::{Arguments, Grug, GrugValue};
 
 use anyhow::Result;
-use grug_rs_proc_macro::game_function;
+use grug_rs_proc_macro::{error_handler, game_function};
 
 fn main() -> Result<()> {
     // Initializes grug
     let grug = Grug::new(
-        None,
+        Some(custom_error_handler),
         "./examples/hello_world/mod_api.json",
         "./examples/hello_world/mods",
         "./examples/hello_world/mods_dll",
@@ -14,10 +14,21 @@ fn main() -> Result<()> {
     )?;
 
     let mut args = Arguments::new(vec![GrugValue::String("hello, world".to_string())]);
-    loop {
-        grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
-    }
+    grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
     Ok(())
+}
+
+#[error_handler]
+fn custom_error_handler(
+    reason: String,
+    ty: GrugRuntimeError,
+    on_fn_name: String,
+    on_fn_path: String,
+) {
+    eprintln!(
+        "Grug runtime error: {}\n  at {} ({})",
+        reason, on_fn_name, on_fn_path
+    );
 }
 
 #[game_function]
