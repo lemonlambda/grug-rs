@@ -1,4 +1,4 @@
-use grug_rs::{Arguments, Grug, GrugValue};
+use grug_rs::{Arguments, Grug};
 
 use anyhow::Result;
 use grug_rs_proc_macro::game_function;
@@ -13,11 +13,9 @@ fn main() -> Result<()> {
         1000,
     )?;
 
-    let mut args = Arguments::new(vec![GrugValue::String("hello, world".to_string())]);
     loop {
         grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
     }
-    Ok(())
 }
 
 #[game_function]
