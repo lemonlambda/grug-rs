@@ -5,6 +5,15 @@
       "on_functions": {
         "on_update": {
           "description": "Called every tick"
+        },
+        "on_argument_test": {
+          "description": "Test arguments",
+          "arguments": [
+            {
+              "name": "test",
+              "type": "i32"
+            }
+          ]
         }
       }
     }
@@ -16,6 +25,15 @@
         {
           "name": "msg",
           "type": "string"
+        }
+      ]
+    },
+    "println_int": {
+      "description": "Prints a string with a new line",
+      "arguments": [
+        {
+          "name": "msg",
+          "type": "i32"
         }
       ]
     }

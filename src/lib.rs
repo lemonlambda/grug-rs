@@ -1,3 +1,5 @@
+#![feature(trait_alias)]
+
 //! Safe bindings for [grug](https://github.com/grug-lang/grug)
 
 //! # Basic Usage
@@ -83,6 +85,7 @@
 //! }
 //! ```
 
+pub mod grug_value;
 pub mod mod_api_type;
 mod to_string_wrapper;
 
@@ -92,14 +95,16 @@ use std::{
     fs::read_to_string,
     path::PathBuf,
     ptr::null_mut,
-    slice::from_raw_parts,
+    slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 use grug_sys::*;
+use seq_macro::seq;
 use serde_json::from_str;
 use thiserror::Error;
 
-use crate::{mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
+use crate::grug_value::Arguments;
+use crate::{grug_value::GrugValue, mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
 
 /// Errors from Grug
 #[derive(Error, Debug)]
@@ -286,10 +291,14 @@ impl Grug {
     /// ```rs
     /// grug.activate_on_function("World", "on_update").unwrap();
     /// ```
+    ///
+    /// # Safety
+    /// Undefined behavior if arguments passed in are incorrect
     pub fn activate_on_function<S1: ToString, S2: ToString>(
         &self,
         entity_name: S1,
         on_function_name: S2,
+        arguments: &mut Arguments,
     ) -> Result<(), GrugError> {
         self.regenerate_modified_mods()?;
 
@@ -314,7 +323,7 @@ impl Grug {
         let files = self.get_files_by_entity_type(entity_name);
 
         for file in files {
-            unsafe { file.run_on_function(index, null_mut())? }; // TODO: Replace null_mut() with actual global variables
+            unsafe { file.run_on_function(index, arguments.into_raw(), arguments.values.len())? };
         }
 
         Ok(())
@@ -362,18 +371,32 @@ impl GrugFile {
     pub unsafe fn run_on_function(
         &self,
         index: usize,
-        mut arguments: *mut c_void,
+        arguments: *mut *mut c_void,
+        arguments_len: usize,
     ) -> Result<(), GrugError> {
-        let ptr = self.inner.on_fns as *mut unsafe extern "C" fn(*mut *mut c_void);
-        let func = unsafe { from_raw_parts(ptr, index + 1) }.last();
+        let ptr = self.inner.on_fns as *mut unsafe extern "C" fn();
+        let func = unsafe { from_raw_parts_mut(ptr, index + 1) }.last_mut();
 
         if func.is_none() {
             // Ensure the function actually has a definition
             return Err(GrugError::UndefinedFunction);
         }
 
+        let func = func.unwrap() as *mut _;
+
         unsafe {
-            func.unwrap()(&mut arguments as *mut _);
+            let args = from_raw_parts(arguments, arguments_len);
+            seq!(N in 0..15 {
+                match arguments_len {
+                    #(N => {
+                        seq!(M in 0..N {
+                            let func = func as *mut unsafe extern "C" fn(*mut c_void, #(i32,)*);
+                            (*func)(null_mut(), #(*(args[M] as *mut _),)*);
+                        });
+                    },)*
+                    _ => panic!("Too arguments, either report this or refactor."),
+                }
+            })
         }
 
         Ok(())

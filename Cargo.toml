@@ -9,6 +9,7 @@ repository = "https://github.com/lemonlambda/grug-rs"
 [dependencies]
 grug-rs-proc-macro = "0.1"
 grug-sys = "0.1"
+seq-macro = "0.3.6"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.147"
 thiserror = "2.0.17"
