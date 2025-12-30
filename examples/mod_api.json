@@ -19,6 +19,20 @@
           "description": "Called every tick"
         }
       }
+    },
+    "CustomType": {
+      "description": "Custom Type Testing",
+      "on_functions": {
+        "on_update": {
+          "description": "Updated once a tick",
+          "arguments": [
+            {
+              "name": "msg",
+              "type": "Foo"
+            }
+          ]
+        }
+      }
     }
   },
   "game_functions": {
@@ -37,6 +51,15 @@
         {
           "name": "msg",
           "type": "i32"
+        }
+      ]
+    },
+    "println_foo": {
+      "description": "Prints our custom type",
+      "arguments": [
+        {
+          "name": "msg",
+          "type": "Foo"
         }
       ]
     }

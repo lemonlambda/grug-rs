@@ -1,0 +1,3 @@
+on_update(msg: Foo) {
+    println_foo(msg)
+}

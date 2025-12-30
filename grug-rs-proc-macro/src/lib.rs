@@ -2,7 +2,10 @@ use std::{collections::HashMap, mem::swap};
 
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{Abi, FnArg, Ident, ItemFn, Pat, Stmt, Type, TypePtr, parse_macro_input, token::Unsafe};
+use syn::{
+    Abi, FnArg, Ident, ItemFn, Pat, Stmt, Type, TypePtr, parse_macro_input,
+    token::{Const, Star, Unsafe},
+};
 
 /// Attribute to make game function easily
 ///
@@ -40,12 +43,35 @@ pub fn game_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             &mut *pattern.ty,
                             &mut Type::Ptr(parse_macro_input!(c_string_type as TypePtr)),
                         );
-                    } else if type_name != "i32" && type_name != "f32" && type_name != "bool" {
-                        panic!(
-                            "You can't use the `{}` type",
-                            pattern.ty.to_token_stream().to_string()
-                        )
                     }
+                }
+                Type::Reference(reference) => {
+                    // Grab the name of the variable
+                    let var_name = {
+                        if let Pat::Ident(ident) = *pattern.pat.clone() {
+                            ident.ident.to_string()
+                        } else {
+                            unreachable!()
+                        }
+                    };
+
+                    if reference.mutability.is_some() {
+                        types.insert(var_name, "PointerMut".to_string());
+                    } else {
+                        types.insert(var_name, "Pointer".to_string());
+                    }
+
+                    swap(
+                        &mut *pattern.ty,
+                        &mut Type::Ptr(TypePtr {
+                            star_token: Star::default(),
+                            const_token: reference
+                                .mutability
+                                .map_or(Some(Const::default()), |_| None),
+                            mutability: reference.mutability,
+                            elem: reference.elem,
+                        }),
+                    )
                 }
                 _ => panic!(
                     "You can't use the `{}` type",
@@ -74,6 +100,38 @@ pub fn game_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 .block
                 .stmts
                 .insert(0, parse_macro_input!(to_string as Stmt));
+        } else if type_ == "Pointer" {
+            let to_reference = format!(
+                "let {0} = if !{0}.is_null() {{
+                    unsafe {{ &*{0} }}
+                }} else {{
+                    panic!(\"`{0}` is null.\")
+                }};",
+                name
+            )
+            .parse()
+            .unwrap();
+
+            input
+                .block
+                .stmts
+                .insert(0, parse_macro_input!(to_reference as Stmt));
+        } else if type_ == "PointerMut" {
+            let to_reference = format!(
+                "let {0} = if !{0}.is_null() {{
+                    unsafe {{ &mut *{0} }}
+                }} else {{
+                    panic!(\"`{0}` is null.\")
+                }};",
+                name
+            )
+            .parse()
+            .unwrap();
+
+            input
+                .block
+                .stmts
+                .insert(0, parse_macro_input!(to_reference as Stmt));
         }
     }
 

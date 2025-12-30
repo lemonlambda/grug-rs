@@ -12,10 +12,9 @@ fn main() -> Result<()> {
         1000,
     )?;
 
-    let mut args = Arguments::new(vec![GrugValue::String("hello, world".to_string())]);
-    loop {
-        grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
-    }
+    let mut foo = Foo { value: 10 };
+    let mut args = Arguments::new(vec![GrugValue::Custom(&mut foo)]);
+    grug.activate_on_function("CustomType", "on_update", &mut args)?;
     Ok(())
 }
 

@@ -4,48 +4,12 @@ use std::{
     ffi::{CString, c_void},
 };
 
-pub trait GrugAny: Any {
-    fn clone_box(&self) -> Box<dyn GrugAny>;
-}
-
-impl<T> GrugAny for T
-where
-    T: Any + Clone,
-{
-    fn clone_box(&self) -> Box<dyn GrugAny> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn GrugAny> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
-
-#[derive(Clone)]
-pub enum GrugValue {
+pub enum GrugValue<'a> {
     String(String),
     I32(i32),
     F32(f32),
     Bool(bool),
-    Custom(Box<dyn GrugAny>),
-}
-
-impl GrugValue {
-    /// Use a custom type
-    ///
-    /// # Example
-    /// ```rs
-    /// struct Cool {
-    ///     hi: i32
-    /// }
-    ///
-    /// let custom_type = GrugValue::custom(Cool { hi: 10 });
-    /// ```
-    pub fn custom<T: GrugAny + 'static>(value: T) -> Self {
-        Self::Custom(Box::new(value))
-    }
+    Custom(&'a mut dyn Any),
 }
 
 /// Arguments to a grug function
@@ -56,14 +20,14 @@ impl GrugValue {
 /// grug.activate_on_function("World", "on_update", &mut Arguments::empty())?;
 /// grug.activate_on_function("World", "on_argument_test", &mut args)?;
 /// ```
-pub struct Arguments {
-    pub(crate) values: Vec<GrugValue>,
+pub struct Arguments<'a> {
+    pub(crate) values: Vec<GrugValue<'a>>,
     raw_values: Option<Vec<*mut c_void>>,
     stored_c_strings: HashMap<String, CString>,
 }
 
-impl Arguments {
-    pub fn new(values: Vec<GrugValue>) -> Self {
+impl<'a> Arguments<'a> {
+    pub fn new(values: Vec<GrugValue<'a>>) -> Self {
         Self {
             values,
             raw_values: None,
@@ -94,7 +58,7 @@ impl Arguments {
                 GrugValue::I32(v) => v as *mut i32 as *mut c_void,
                 GrugValue::F32(v) => v as *mut f32 as *mut c_void,
                 GrugValue::Bool(v) => v as *mut bool as *mut c_void,
-                GrugValue::Custom(v) => (*v).as_mut() as *mut _ as *mut c_void,
+                GrugValue::Custom(v) => *v as *mut _ as *mut c_void,
             });
         }
 

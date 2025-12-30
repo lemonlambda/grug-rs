@@ -1,4 +1,4 @@
-#![feature(trait_alias)]
+#![feature(box_as_ptr)]
 
 //! Safe bindings for [grug](https://github.com/grug-lang/grug)
 
