@@ -93,7 +93,6 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString, OsString, c_char, c_void},
     fs::read_to_string,
-    mem::transmute,
     path::PathBuf,
     ptr::null_mut,
     slice::{from_raw_parts, from_raw_parts_mut},
@@ -105,7 +104,7 @@ use serde_json::from_str;
 use thiserror::Error;
 
 use crate::grug_value::Arguments;
-use crate::{grug_value::GrugValue, mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
+use crate::{mod_api_type::ModAPI, to_string_wrapper::ToStringWrapper};
 
 /// Errors from Grug
 #[derive(Error, Debug)]

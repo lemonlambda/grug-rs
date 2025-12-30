@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    borrow::Borrow,
     collections::HashMap,
     ffi::{CString, c_void},
 };
