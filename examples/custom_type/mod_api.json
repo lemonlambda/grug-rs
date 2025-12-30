@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "CustomType": {
+      "description": "Custom Type Testing",
+      "on_functions": {
+        "on_update": {
+          "description": "Updated once a tick",
+          "arguments": [
+            {
+              "name": "msg",
+              "type": "Foo"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "game_functions": {
+    "println_foo": {
+      "description": "Prints our custom type",
+      "arguments": [
+        {
+          "name": "msg",
+          "type": "Foo"
+        }
+      ]
+    }
+  }
+}

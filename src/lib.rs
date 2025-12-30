@@ -243,7 +243,7 @@ impl Grug {
                         .keys()
                         .map(|k| {
                             let return_val = (k.clone(), i);
-                            println!("{k}");
+                            // println!("{k}");
                             i += 1;
                             return_val
                         })

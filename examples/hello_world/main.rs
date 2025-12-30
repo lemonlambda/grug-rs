@@ -6,9 +6,9 @@ use grug_rs_proc_macro::game_function;
 fn main() -> Result<()> {
     // Initializes grug
     let grug = Grug::new(
-        "./examples/mod_api.json",
-        "./examples/mods",
-        "./examples/mods_dll",
+        "./examples/hello_world/mod_api.json",
+        "./examples/hello_world/mods",
+        "./examples/hello_world/mods_dll",
         1000,
     )?;
 
@@ -22,20 +22,4 @@ fn main() -> Result<()> {
 #[game_function]
 fn println(message: String) {
     println!("{message}");
-}
-
-#[game_function]
-fn println_int(message: i32) {
-    println!("{message}");
-}
-
-#[repr(C)]
-#[derive(Debug, Clone)]
-struct Foo {
-    value: i32,
-}
-
-#[game_function]
-fn println_foo(message: &mut Foo) {
-    println!("{message:?}");
 }
