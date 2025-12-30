@@ -12,6 +12,7 @@
 //! fn main() -> Result<()> {
 //!     // Initializes grug
 //!     let grug = Grug::new(
+//!         None,
 //!         "./mod_api.json",
 //!         "./mods",
 //!         "./mods_dll",

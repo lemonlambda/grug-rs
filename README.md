@@ -10,6 +10,7 @@ use grug_rs_proc_macro::game_function;
 fn main() -> Result<()> {
     // Initializes grug
     let grug = Grug::new(
+        None,
         "./mod_api.json",
         "./mods",
         "./mods_dll",
